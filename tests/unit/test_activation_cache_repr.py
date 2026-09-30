@@ -10,7 +10,6 @@ implementation listed every key, so its output grew linearly with the cache and 
 many-thousand-key cache in a notebook effectively hung the front-end.
 """
 
-import time
 from types import SimpleNamespace
 
 import pytest
@@ -92,19 +91,25 @@ def test_repr_empty_cache():
 
 
 def test_repr_is_bounded_for_large_cache():
-    """Regression guard for the slow repr: output size must not scale with the number of keys."""
+    """Regression guard for the slow repr: output size must not scale with the number of keys.
+
+    The old implementation listed every key, so a ~4.8k-key cache produced a ~130 KB repr. The
+    check is on output size rather than wall-clock time, which is flaky on CI runners.
+    """
     small = _make_cache(n_layers=2)
     large = _make_cache(n_layers=400)  # ~4.8k keys, comparable to a big model in compat mode
     assert len(large) > 4000
 
-    small_len = len(repr(small))
-    start = time.perf_counter()
+    small_rep = repr(small)
     large_rep = repr(large)
-    elapsed = time.perf_counter() - start
 
-    # A handful of digits for the larger counts is the only allowed growth.
-    assert len(large_rep) < small_len + 32
-    assert elapsed < 0.05
+    # Only the two counts (n_activations and the "N more" tail) may be longer for the big cache.
+    assert len(large_rep) < len(small_rep) + 32
+    assert len(large_rep) < 512
+    # The elided keys are not present anywhere in the output.
+    assert "blocks.399" not in large_rep
+    assert "ln_final.hook_normalized" not in large_rep
+    assert f"({len(large) - 5} more)" in large_rep
 
 
 def test_getitem_accepts_string_and_tuple_keys():
