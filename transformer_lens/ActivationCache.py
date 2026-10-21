@@ -173,14 +173,32 @@ class ActivationCache:
             logging.warning("Tried removing batch dimension after already having removed it.")
         return self
 
+    # Caches with more keys than this print a truncated key list; smaller ones print every key.
+    _REPR_MAX_KEYS = 100
+    _REPR_HEAD_KEYS = 8
+    _REPR_TAIL_KEYS = 3
+
     def __repr__(self) -> str:
         """Representation of the ActivationCache.
 
         Special method that returns a string representation of an object. It's normally used to give
         a string that can be used to recreate the object, but here we just return a string that
         describes the object.
+
+        Caches with more than ``_REPR_MAX_KEYS`` keys show only the first and last few keys plus the
+        total count, so printing a cache from a deep model stays readable. Use :meth:`keys` for the
+        full list.
         """
-        return f"ActivationCache with keys {list(self.cache_dict.keys())}"
+        keys = list(self.cache_dict.keys())
+        if len(keys) <= self._REPR_MAX_KEYS:
+            return f"ActivationCache with keys {keys}"
+        head = ", ".join(repr(k) for k in keys[: self._REPR_HEAD_KEYS])
+        tail = ", ".join(repr(k) for k in keys[-self._REPR_TAIL_KEYS :])
+        omitted = len(keys) - self._REPR_HEAD_KEYS - self._REPR_TAIL_KEYS
+        return (
+            f"ActivationCache with {len(keys)} keys [{head}, ..., {tail}] "
+            f"({omitted} omitted; use cache.keys() for the full list)"
+        )
 
     def __getitem__(self, key) -> torch.Tensor:
         """Retrieve Cached Activations by Key or Shorthand.
